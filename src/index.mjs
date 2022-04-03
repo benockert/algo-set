@@ -1,118 +1,107 @@
-'reach 0.1';
+import { loadStdlib, ask } from '@reach-sh/stdlib';
+import * as backend from './build/index.main.mjs';
+const stdlib = loadStdlib(); // todo add ALGO and fix error
 
-// enum of possible outcomes
-const [isResult, CONTINUE, PLAYER_1_WINS, PLAYER_2_WINS, DRAW] = makeEnum(4);
+const isPlayer1 = await ask.ask(
+    `Are you Player 1?`,
+    ask.yesno
+);
+const who = isPlayer1 ? 'Player 1' : 'Player 2';
+console.log(`Starting Algo Worldle as ${who}!`);
 
-// helper function for comparing guesses
-const checkWord = (word, answer) => (word == answer);
-
-// test check word function
-assert(checkWord("test", "test"));
-assert(!checkWord("test", "nope"));
-
-// helper function for determining round results
-const determineRoundResult = (player1Correct, player2Correct) => (!player1Correct && !player2Correct ? 0 : player1Correct && !player2Correct ? 1 : !player1Correct && player2Correct ? 2 : 3)
-
-// test determine result function
-assert(determineRoundResult(false, false) == CONTINUE);
-assert(determineRoundResult(true, false) == PLAYER_1_WINS);
-assert(determineRoundResult(false, true) == PLAYER_2_WINS);
-assert(determineRoundResult(true, true) == DRAW);
-
-// Player interface
-const Player = {
-    // gets a user's guess for a certain round
-    getGuess: Fun([], Bytes(5)),
-    // views the winning uer's name, winning word, and winning number of guesses
-    seeOutcome: Fun([UInt], Null), //todo send both players words??
-    // inform timeout if a player does not guess
-    informTimeout: Fun([], Null),
+let acc = null;
+const createAcc = await ask.ask(
+    `Would you like to create a test account? (only possible on devnet)`,
+    ask.yesno
+);
+if (createAcc) {
+    console.log(`Creating test account for ${who}`);
+    acc = await stdlib.newTestAccount(stdlib.parseCurrency(1000));
+} else {
+    const secret = await ask.ask(
+        `What is your account secret?`,
+        (x => x)
+    );
+    acc = await stdlib.newAccountFromSecret(secret);
 }
 
-export const main = Reach.App(() => {
-    const Player1 = Participant('Player1', {
-        ...Player, // inherit Player interface
-        wager: UInt, // number of Algo wagered for this game
-        word: Bytes(5),
-        deadline: UInt,
-    })
+let ctc = null;
+if (isPlayer1) {
+    ctc = acc.contract(backend);
+    ctc.getInfo().then((info) => {
+        console.log(`The contract is deployed as = ${JSON.stringify(info)}`);
+    });
+} else {
+    const info = await ask.ask(
+        `Please paste the contract information:`,
+        JSON.parse
+    );
+    ctc = acc.contract(backend, info);
+}
 
-    const Player2 = Participant('Player2', {
-        ...Player, // inherit the Player interface
-        acceptWager: Fun([UInt], Null), // accept the wager from Player1
-        word: Bytes(5),
-    })
+const fmt = (x) => stdlib.formatCurrency(x, 4);
+const getBalance = async () => fmt(await stdlib.balanceOf(acc));
+const before = await getBalance();
+console.log(`Your balance is ${before}`);
+const interact = {};
 
-    // initialize the app 
-    init();
+interact.informTimeout = () => {
+    console.log(`There was a timeout.`);
+    process.exit(1);
+};
 
-    const informTimeout = () => {
-        each([Player1, Player2], () => {
-            interact.informTimeout();
-        });
+if (isPlayer1) {
+    const amt = await ask.ask(
+        `How much do you want to wager?`,
+        stdlib.parseCurrency
+    );
+    interact.wager = amt;
+    interact.deadline = 100; // 100 blocks
+} else {
+    interact.acceptWager = async (amt) => {
+        const accepted = await ask.ask(
+            `Do you accept the wager of ${fmt(amt)}?`,
+            ask.yesno
+        );
+        if (!accepted) {
+            process.exit(0);
+        }
     };
+}
 
-    // Player1 publishes and pay the wager; also sets the deadline for each round
-    Player1.only(() => {
-        const wager = declassify(interact.wager);
-        const deadline = declassify(interact.deadline);
+// if the word length is 5, great, otherwise return false so the process exits
+const checkUserWordInput = (word) => {
+    return word.length == 5 ? word.toLowerCase() : false;
+}
 
-        const wordPlayer1 = declassify(interact.word);
+const word = await ask.ask(
+    `What 5 letter word do you want your opponent to guess?`,
+    checkUserWordInput
+);
+if (!word) {
+    process.exit(0);
+}
+interact.word = word;
+
+interact.getGuess = async () => {
+    const wordGuessed = await ask.ask(`What word will you guess?`, (word) => {
+        if (word.length != 5) {
+            throw Error(`Not a valid guess: ${word}`);
+        }
+        return word.toLowerCase();
     });
-    Player1.publish(wager, deadline, wordPlayer1).pay(wager);
-    commit();
+    console.log(`Waiting on opponent...`);
+    return wordGuessed;
+};
 
-    // Player2 accepts the wager and pays the wager (only has the set deadline to do so)
-    Player2.only(() => {
-        interact.acceptWager(wager);
+const OUTCOME = ['Player 1 wins', 'Player 2 wins', 'Draw'];
+interact.seeOutcome = async (outcome) => {
+    console.log(`The outcome is: ${OUTCOME[outcome - 1]}`);
+};
 
-        const wordPlayer2 = declassify(interact.word);
-    });
-    Player2.publish(wordPlayer2).pay(wager).timeout(relativeTime(deadline), () => closeTo(Player1, informTimeout));
-
-    // keep track of the number of guesses and if there is a winner yet or not 
-    //var numberOfRounds = 1;
-    var result = CONTINUE;
-    invariant(balance() == 2 * wager && isResult(result));
-    // play the game while there is no winner declared
-    while (result == CONTINUE) {
-        commit();
-
-        // get player1's guess and commit it
-        Player1.only(() => {
-            const guessPlayer1 = declassify(interact.getGuess());
-        });
-        Player1.publish(guessPlayer1).timeout(relativeTime(deadline), () => closeTo(Player2, informTimeout));
-        commit();
-
-        // get player2's guess and commit it
-        Player2.only(() => {
-            const guessPlayer2 = declassify(interact.getGuess());
-        });
-        Player2.publish(guessPlayer2).timeout(relativeTime(deadline), () => closeTo(Player1, informTimeout));
-
-        // now check results of each player's guess
-        // player1Outcome = checkWord(guessPlayer1, wordPlayer2);
-        // player2Outcome = checkWord(guessPlayer2, wordPlayer1);
-
-        // determine result of the rount
-        result = determineRoundResult(checkWord(guessPlayer1, wordPlayer2), checkWord(guessPlayer2, wordPlayer1));
-        continue;
-    }
-
-    // check we do not have an undecided outcome
-    assert(result == PLAYER_1_WINS || result == PLAYER_2_WINS || result == DRAW);
-
-    // determine payouts 
-    const [forPlayer1, forPlayer2] = result == PLAYER_1_WINS ? [2, 0] : result == PLAYER_2_WINS ? [0, 2] : [1, 1];
-
-    // transfer wager based on result
-    transfer(forPlayer1 * wager).to(Player1);
-    transfer(forPlayer2 * wager).to(Player2);
-    commit();
-
-    each([Player1, Player2], () => {
-        interact.seeOutcome(result);
-    });
-
-});
+// choose which backend function to interact with
+const part = isPlayer1 ? ctc.p.Player1 : ctc.p.Player2;
+await part(interact);
+const after = await getBalance();
+console.log(`Your balance is now ${after}`);
+ask.done();
