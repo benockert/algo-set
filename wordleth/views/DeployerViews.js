@@ -19,7 +19,7 @@ exports.Wrapper = class extends React.Component {
 
 exports.SetWagerAndWord = class extends React.Component {
   render() {
-    const { parent, defaultWager, standardUnit } = this.props;
+    const { parent, bal, defaultWager, standardUnit } = this.props;
     const wager = (this.state || {}).wager || defaultWager;
     const word = (this.state || {}).word || "";
     return (
@@ -30,6 +30,8 @@ exports.SetWagerAndWord = class extends React.Component {
           placeholder={defaultWager}
           onChange={(e) => this.setState({ wager: e.currentTarget.value })}
         /> {standardUnit}
+        <br />
+        Your balance: {bal} {standardUnit}
         <br />
         Word for opponent to guess:
         <input

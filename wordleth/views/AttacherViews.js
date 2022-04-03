@@ -56,18 +56,19 @@ exports.Attaching = class extends React.Component {
 
 exports.AcceptTerms = class extends React.Component {
   render() {
-    const { wager, standardUnit, parent } = this.props;
+    const { wager, bal, standardUnit, parent } = this.props;
     const { disabled } = this.state || {};
     return (
       <div>
         The terms of the game are:
         <br /> Wager: {wager} {standardUnit}
         <br />
+        Your balance: {bal} {standardUnit}
         <button
           disabled={disabled}
           onClick={() => {
             this.setState({ disabled: true });
-            parent.termsAccepted();
+            parent.readyToBegin();
           }}
         >Accept terms and pay wager</button>
       </div>
@@ -79,6 +80,7 @@ exports.SetWordToGuess = class extends React.Component {
   render() {
     const { parent } = this.props;
     const { disabled } = this.state || {};
+    const word = (this.state || {}).word || "";
 
     return (
       <div>

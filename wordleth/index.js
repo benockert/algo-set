@@ -10,7 +10,7 @@ const reach = loadStdlib();
 
 const outcomes = ['Player 1 wins!', 'Player 2 wins!', 'The game is drawn!'];
 const { standardUnit } = reach;
-const defaults = { defaultFundAmt: '10', defaultWager: '3', standardUnit };
+const defaults = { defaultWager: '3', standardUnit };
 
 class App extends React.Component {
   constructor(props) {
@@ -18,22 +18,26 @@ class App extends React.Component {
     this.state = { view: 'ConnectAccount', ...defaults };
   }
   async componentDidMount() {
-    const acc = await reach.getDefaultAccount();
+    const startingBalance = reach.parseCurrency(100);
+    const acc = await reach.newTestAccount(startingBalance);
+    // const acc = await reach.getDefaultAccount(); // for linking with their Metamask or Algo wallet
     const balAtomic = await reach.balanceOf(acc);
     const bal = reach.formatCurrency(balAtomic, 4);
-    this.setState({ acc, bal });
-
-    this.setState({ view: 'DeployerOrAttacher' });
+    this.setState({ acc, bal, view: 'DeployerOrAttacher' });
+    // if (await reach.canFundFromFaucet()) {
+    //   this.setState({ view: 'FundAccount' });
+    // } else {
+    //   this.setState({ view: 'DeployerOrAttacher' });
+    // }
   }
-}
-  async fundAccount(fundAmount) {
-  await reach.fundFromFaucet(this.state.acc, reach.parseCurrency(fundAmount));
-  this.setState({ view: 'DeployerOrAttacher' });
-}
-  async skipFundAccount() { this.setState({ view: 'DeployerOrAttacher' }); }
-selectAttacher() { this.setState({ view: 'Wrapper', ContentView: Attacher }); }
-selectDeployer() { this.setState({ view: 'Wrapper', ContentView: Deployer }); }
-render() { return renderView(this, AppViews); }
+  // async fundAccount(fundAmount) {
+  //   await reach.fundFromFaucet(this.state.acc, reach.parseCurrency(fundAmount));
+  //   this.setState({ view: 'DeployerOrAttacher' });
+  // }
+  // async skipFundAccount() { this.setState({ view: 'DeployerOrAttacher' }); }
+  selectAttacher() { this.setState({ view: 'Wrapper', ContentView: Attacher }); }
+  selectDeployer() { this.setState({ view: 'Wrapper', ContentView: Deployer }); }
+  render() { return renderView(this, AppViews); }
 }
 
 class Player extends React.Component {
@@ -93,7 +97,7 @@ class Attacher extends Player {
       this.setState({ view: 'SetWordToGuess', resolveSetWordP });
     });
   }
-  termsAccepted() {
+  readyToBegin() {
     this.state.resolveAcceptedP();
     this.setState({ view: 'WaitingForTurn' });
   }
