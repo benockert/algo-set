@@ -5,7 +5,7 @@ import { ALGO_MyAlgoConnect as MyAlgoConnect } from '@reach-sh/stdlib';
 import { Button } from 'react-bootstrap';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
-import './Create.css';
+import './Connect.css';
 
 const reach = loadStdlib("ALGO")
 
@@ -13,7 +13,7 @@ reach.setWalletFallback(reach.walletFallback({
     providerEnv: 'TestNet', MyAlgoConnect
 }));
 
-function Create() {
+function Connect() {
     const account = useRef()
     const balance = useRef()
 
@@ -50,11 +50,10 @@ function Create() {
         }
     }
     return (
-        <div className="Create">
-            <h2>Create an Algo Set Index</h2>
-            <Button className="link-wallet-button" onClick={() => connectWallet()}>Link Wallet</Button>
+        <div >
+            <Button className="link-wallet-button" onClick={() => connectWallet()}>Link Algo Wallet</Button>
         </div>
     )
 }
 
-export default Create;
+export default Connect;

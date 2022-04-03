@@ -1,8 +1,8 @@
-import Create from './views/Create';
+import Connect from './views/Connect';
 
 function App() {
   return (
-    <Create />
+    <Connect />
   );
 }
 
